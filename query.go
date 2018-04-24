@@ -26,6 +26,7 @@ func NewClient(url string, headers map[string]string) *Client {
 // RawRequest takes a byte slice with your graphQL query inside it, and returns a byte slice with
 // the graphql response inside it, or an error.
 func (c *Client) RawRequest(query []byte) ([]byte, error) {
+	fmt.Println(string(query))
 	buf := bytes.NewBuffer(query)
 	req, err := http.NewRequest("POST", c.url, buf)
 	if err != nil {
@@ -43,7 +44,11 @@ func (c *Client) RawRequest(query []byte) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("non-200 response status: %v", resp.Status)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("could not ready body: %v", err)
+		}
+		return nil, fmt.Errorf("non-200 response status: %v.  body: %v", resp.Status, string(body))
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -52,7 +57,7 @@ func (c *Client) RawRequest(query []byte) ([]byte, error) {
 
 // Request takes one Field object and the object or pointer that you want to have the results
 // unmarshaled into.  It then does the request and unmarshals the result for you.
-func (c *Client) Request(f *Field, out interface{}) error {
+func (c *Client) Request(f Field, out interface{}) error {
 
 	query, err := f.Render()
 	if err != nil {
@@ -68,11 +73,11 @@ func (c *Client) Request(f *Field, out interface{}) error {
 	return json.Unmarshal(res, out)
 }
 
-// MultiRequest takes one or more Req objects, each containing a field and an object or pointer that
+// QueryFields takes one or more Req objects, each containing a field and an object or pointer that
 // that field's data should be unmarshaled into.  It then joins all the fields into a single query,
 // sends it to the server, and unmarshals the results into the containers you provided.
-func (c *Client) MultiRequest(first *Req, more ...*Req) error {
-	reqs := map[string]*Req{first.Field.Name: first}
+func (c *Client) QueryFields(first Q, more ...Q) error {
+	reqs := map[string]Q{first.Field.Name: first}
 	for _, f := range more {
 		reqs[f.Field.Name] = f
 	}
@@ -80,9 +85,9 @@ func (c *Client) MultiRequest(first *Req, more ...*Req) error {
 	// build an outer "query" with all the requested fields as sub selects
 	fields := []Field{}
 	for _, v := range reqs {
-		fields = append(fields, *v.Field)
+		fields = append(fields, v.Field)
 	}
-	q := &Field{
+	q := Field{
 		Name:   "query",
 		Fields: fields,
 	}
@@ -107,9 +112,9 @@ type genericResult struct {
 	Data map[string]json.RawMessage `json:"data"`
 }
 
-// Req is a GraphQL Field object and a pointer to the thing you want to unmarshal its result into.
-type Req struct {
-	Field *Field
+// Q is a GraphQL Field object and a pointer to the thing you want to unmarshal its result into.
+type Q struct {
+	Field Field
 	Dest  interface{}
 }
 

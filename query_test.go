@@ -98,7 +98,7 @@ func TestClientRequest(t *testing.T) {
 	var out fakeSuccessObject
 
 	client := NewClient(server.URL, map[string]string{})
-	err := client.Request(&f, &out)
+	err := client.Request(f, &out)
 	assert.Nil(t, err)
 
 	expected := fakeSuccessObject{
@@ -114,15 +114,15 @@ func TestClientRequest(t *testing.T) {
 	assert.Equal(t, expected, out)
 }
 
-// test MultiRequest
-func TestClientMultiRequest(t *testing.T) {
+// test QueryFields
+func TestClientQueryFields(t *testing.T) {
 	handler := http.HandlerFunc(fakeSuccessHandler)
 	server := httptest.NewServer(&handler)
 	defer server.Close()
 
-	firstField := &Field{Name: "first"}
-	secondField := &Field{Name: "second"}
-	thirdField := &Field{
+	firstField := Field{Name: "first"}
+	secondField := Field{Name: "second"}
+	thirdField := Field{
 		Name: "third",
 		Arguments: map[string]interface{}{
 			"arg1": "one",
@@ -139,10 +139,10 @@ func TestClientMultiRequest(t *testing.T) {
 	var thirdVal third
 
 	client := NewClient(server.URL, map[string]string{})
-	err := client.MultiRequest(
-		&Req{Field: firstField, Dest: &first},
-		&Req{Field: secondField, Dest: &second},
-		&Req{Field: thirdField, Dest: &thirdVal},
+	err := client.QueryFields(
+		Q{Field: firstField, Dest: &first},
+		Q{Field: secondField, Dest: &second},
+		Q{Field: thirdField, Dest: &thirdVal},
 	)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, first)
