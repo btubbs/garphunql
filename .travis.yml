@@ -7,7 +7,7 @@ cache:
     - ${GOPATH}/src/golang.org/x
     - ${GOPATH}/src/honnef.co
 go:
-  - tip
+  - "1.10"
 
 script:
   - make ci
