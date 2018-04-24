@@ -1,4 +1,4 @@
-package gqlquery
+package garphunql
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 )
 
 // Client is the object used for making all requests.
@@ -27,6 +28,9 @@ func NewClient(url string, headers map[string]string) *Client {
 func (c *Client) RawRequest(query []byte) ([]byte, error) {
 	buf := bytes.NewBuffer(query)
 	req, err := http.NewRequest("POST", c.url, buf)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Add("Content-Type", "application/graphql")
 	for k, v := range c.headers {
 		req.Header.Add(k, v)
@@ -124,6 +128,7 @@ func (f Field) Render(indents ...bool) ([]byte, error) {
 	for k, _ := range f.Arguments {
 		argNames = append(argNames, k)
 	}
+	sort.Strings(argNames)
 	args := [][]byte{}
 	for _, k := range argNames {
 		a := []byte(k + ": ")
