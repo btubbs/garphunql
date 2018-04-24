@@ -61,7 +61,7 @@ func TestClientRawRequest(t *testing.T) {
 }`
 
 	client := NewClient(server.URL, map[string]string{})
-	resp, err := client.RawRequest([]byte(rawReq))
+	resp, err := client.RawRequest(rawReq)
 	assert.Nil(t, err)
 	assert.Equal(t, fakeSuccessPayload, string(resp))
 }

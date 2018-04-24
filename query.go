@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sort"
+	"strings"
 )
 
 // Client is the object used for making all requests.
@@ -23,16 +24,23 @@ func NewClient(url string, headers map[string]string) *Client {
 	}
 }
 
+func wrapQuery(query string) ([]byte, error) {
+	return json.Marshal(map[string]string{"query": query})
+}
+
 // RawRequest takes a byte slice with your graphQL query inside it, and returns a byte slice with
 // the graphql response inside it, or an error.
-func (c *Client) RawRequest(query []byte) ([]byte, error) {
-	fmt.Println(string(query))
-	buf := bytes.NewBuffer(query)
+func (c *Client) RawRequest(query string) ([]byte, error) {
+	q, err := wrapQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	buf := bytes.NewBuffer(q)
 	req, err := http.NewRequest("POST", c.url, buf)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("Content-Type", "application/graphql")
+	req.Header.Add("Content-Type", "application/json")
 	for k, v := range c.headers {
 		req.Header.Add(k, v)
 	}
@@ -126,59 +134,57 @@ type Field struct {
 }
 
 // Render turns a Field into bytes that you can send in a network request.
-func (f Field) Render(indents ...bool) ([]byte, error) {
-	out := []byte(f.Name)
+func (f Field) Render(indents ...bool) (string, error) {
+	out := f.Name
 	// loop over the args in alphabetical order to ensure consistent (easily testable) output order.
 	argNames := []string{}
 	for k, _ := range f.Arguments {
 		argNames = append(argNames, k)
 	}
 	sort.Strings(argNames)
-	args := [][]byte{}
+	args := []string{}
 	for _, k := range argNames {
-		a := []byte(k + ": ")
+		a := k + ": "
 		val, err := json.Marshal(f.Arguments[k])
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		a = append(a, val...)
+		a += string(val)
 		args = append(args, a)
 	}
 
 	// only include args part if there's at least one arg
 	if len(args) > 0 {
-		out = append(out, wrapArgs("(", args, ", ", ")")...)
+		out += wrapArgs("(", args, ", ", ")")
 	}
 
 	// ok now render sub selects.
-	subfields := [][]byte{}
+	subfields := []string{}
 	for _, s := range f.Fields {
 		val, err := s.Render(append(indents, true)...)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		subfields = append(subfields, val)
 	}
 	if len(subfields) > 0 {
-		indent := []byte("  ")
+		indent := "  "
 		// curly brace
-		out = append(out, []byte(" {")...)
+		out += " {"
 		// first indent
 		// now render each field
 		for _, f := range subfields {
-			out = append(out, []byte("\n")...)
-			out = append(out, bytes.Repeat(indent, len(indents)+1)...)
-			out = append(out, f...)
+			out += "\n"
+			out += strings.Repeat(indent, len(indents)+1)
+			out += f
 		}
-		out = append(out, []byte("\n")...)
-		out = append(out, bytes.Repeat(indent, len(indents))...)
-		out = append(out, []byte("}")...)
+		out += "\n"
+		out += strings.Repeat(indent, len(indents))
+		out += "}"
 	}
 	return out, nil
 }
 
-func wrapArgs(start string, things [][]byte, sep string, end string) []byte {
-	b := []byte(start)
-	b = append(b, bytes.Join(things, []byte(sep))...)
-	return append(b, []byte(end)...)
+func wrapArgs(start string, things []string, sep string, end string) string {
+	return start + strings.Join(things, sep) + end
 }
