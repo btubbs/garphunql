@@ -5,9 +5,6 @@ GOBIN ?= $(GOPATH)/bin
 
 all: tests check
 
-bin/pmg: pmg/pmg.go
-	go build -o $@ $<
-
 dep: $(GOBIN)/dep
 	$(GOBIN)/dep ensure
 
