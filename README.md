@@ -176,33 +176,33 @@ level `data` object returned by the GraphQL server (which is done in the example
 The lowest level interface offered by Garphunql is the `RawRequest` method, which takes a query as a
 string and returns the exact bytes returned by the server:
 
-  ```go
-    package main
+```go
+package main
 
-    import (
-      "fmt"
+import (
+  "fmt"
 
-      "github.com/btubbs/garphunql"
-    )
+  "github.com/btubbs/garphunql"
+)
 
-    func main() {
-      client := garphunql.NewClient(
-        "https://api.github.com/graphql",
-        map[string]string{
-          "Authorization": "bearer aidee6gahPe1baeth8tikeijeeth0aedaehe",
-        },
-      )
+func main() {
+  client := garphunql.NewClient(
+    "https://api.github.com/graphql",
+    map[string]string{
+      "Authorization": "bearer aidee6gahPe1baeth8tikeijeeth0aedaehe",
+    },
+  )
 
-      q := `{
-    user(login:"zachabrahams") {
-      name
-      location
-    }
-    }`
+  q := `{
+user(login:"zachabrahams") {
+  name
+  location
+}
+}`
 
-      resp, err := client.RawRequest(q)
-      fmt.Println(string(resp), err)
-    }
+  resp, err := client.RawRequest(q)
+  fmt.Println(string(resp), err)
+}
 ```
 
 ## TODO
