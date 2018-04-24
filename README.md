@@ -26,25 +26,115 @@ results and unmarshals them into pointers that you have provided.  When calling 
 provide one or more pairs of `Field` objects and the things they should be scanned into.  Here's an
 example that gets information on a couple users and all the open source licenses on Github.com:
 
-    package main
+```go
+package main
 
-    import (
-      "fmt"
+import (
+  "fmt"
 
-      "github.com/btubbs/garphunql"
-    )
+  "github.com/btubbs/garphunql"
+)
 
-    func main() {
+func main() {
 
-      meField := garphunql.Field{
-        Name: "viewer",
+  meField := garphunql.Field{
+    Name: "viewer",
+    Fields: []garphunql.Field{
+      {Name: "name"},
+      {Name: "location"},
+    },
+  }
+
+  zachField := garphunql.Field{
+    Name: "user",
+    Arguments: map[string]interface{}{
+      "login": "zachabrahams",
+    },
+    Fields: []garphunql.Field{
+      {Name: "name"},
+      {Name: "location"},
+    },
+  }
+
+  licensesField := garphunql.Field{
+    Name: "licenses",
+    Fields: []garphunql.Field{
+      {Name: "name"},
+      {
+        Name: "permissions",
         Fields: []garphunql.Field{
-          {Name: "name"},
-          {Name: "location"},
+          {Name: "description"},
         },
-      }
+      },
+    },
+  }
 
-      zachField := garphunql.Field{
+  client := garphunql.NewClient(
+    "https://api.github.com/graphql",
+    map[string]string{
+      "Authorization": "bearer aidee6gahPe1baeth8tikeijeeth0aedaehe",
+    },
+  )
+
+  var me User
+  var zach User
+  var licenses []License
+  err := client.QueryFields(
+    garphunql.Q{Field: meField, Dest: &me},
+    garphunql.Q{Field: zachField, Dest: &zach},
+    garphunql.Q{Field: licensesField, Dest: &licenses},
+  )
+
+  if err != nil {
+    panic(err.Error())
+  }
+
+  fmt.Println("me", me)
+  fmt.Println("zach", zach)
+  fmt.Println("licenses", licenses)
+}
+
+type License struct {
+  Name        string       `json:"name"`
+  Permissions []Permission `json:"permissions"`
+}
+
+type Permission struct {
+  Description string `json:"description"`
+}
+
+type User struct {
+  Name     string `json:"name"`
+  Location string `json:"location"`
+}
+```    
+
+### client.Request
+
+If you only need to query a single field, or if you want to run a mutation, then the `Request`
+method can do it.  It takes only a single `Field`, and something to unmarshal the results into.
+Here's an example of getting a single user from the Github API using `Request`:
+
+```go
+package main
+
+import (
+  "fmt"
+
+  "github.com/btubbs/garphunql"
+)
+
+func main() {
+  client := garphunql.NewClient(
+    "https://api.github.com/graphql",
+    map[string]string{
+      "Authorization": "bearer aidee6gahPe1baeth8tikeijeeth0aedaehe",
+    },
+  )
+  query := garphunql.Field{
+    Name: "query",
+    Fields: []garphunql.Field{
+      {
         Name: "user",
         Arguments: map[string]interface{}{
           "login": "zachabrahams",
@@ -53,112 +143,26 @@ example that gets information on a couple users and all the open source licenses
           {Name: "name"},
           {Name: "location"},
         },
-      }
+      },
+    },
+  }
 
-      licensesField := garphunql.Field{
-        Name: "licenses",
-        Fields: []garphunql.Field{
-          {Name: "name"},
-          {
-            Name: "permissions",
-            Fields: []garphunql.Field{
-              {Name: "description"},
-            },
-          },
-        },
-      }
+  var resp Resp
+  err := client.Request(query, &resp)
+  fmt.Println(resp, err)
+}
 
-      client := garphunql.NewClient(
-        "https://api.github.com/graphql",
-        map[string]string{
-          "Authorization": "bearer aidee6gahPe1baeth8tikeijeeth0aedaehe",
-        },
-      )
+type Resp struct {
+  Data struct {
+    User User `json:"user"`
+  } `json:"data"`
+}
 
-      var me User
-      var zach User
-      var licenses []License
-      err := client.QueryFields(
-        garphunql.Q{Field: meField, Dest: &me},
-        garphunql.Q{Field: zachField, Dest: &zach},
-        garphunql.Q{Field: licensesField, Dest: &licenses},
-      )
-
-      if err != nil {
-        panic(err.Error())
-      }
-
-      fmt.Println("me", me)
-      fmt.Println("zach", zach)
-      fmt.Println("licenses", licenses)
-    }
-
-    type License struct {
-      Name        string       `json:"name"`
-      Permissions []Permission `json:"permissions"`
-    }
-
-    type Permission struct {
-      Description string `json:"description"`
-    }
-
-    type User struct {
-      Name     string `json:"name"`
-      Location string `json:"location"`
-    }
-
-### client.Request
-
-If you only need to query a single field, or if you want to run a mutation, then the `Request`
-method can do it.  It takes only a single `Field`, and something to unmarshal the results into.
-Here's an example of getting a single user from the Github API using `Request`:
-
-    package main
-
-    import (
-      "fmt"
-
-      "github.com/btubbs/garphunql"
-    )
-
-    func main() {
-      client := garphunql.NewClient(
-        "https://api.github.com/graphql",
-        map[string]string{
-          "Authorization": "bearer aidee6gahPe1baeth8tikeijeeth0aedaehe",
-        },
-      )
-      query := garphunql.Field{
-        Name: "query",
-        Fields: []garphunql.Field{
-          {
-            Name: "user",
-            Arguments: map[string]interface{}{
-              "login": "zachabrahams",
-            },
-            Fields: []garphunql.Field{
-              {Name: "name"},
-              {Name: "location"},
-            },
-          },
-        },
-      }
-
-      var resp Resp
-      err := client.Request(query, &resp)
-      fmt.Println(resp, err)
-    }
-
-    type Resp struct {
-      Data struct {
-        User User `json:"user"`
-      } `json:"data"`
-    }
-
-    type User struct {
-      Name     string `json:"name"`
-      Location string `json:"location"`
-    }
+type User struct {
+  Name     string `json:"name"`
+  Location string `json:"location"`
+}
+```
 
 Notice that `Request`, unlike `QueryFields`, requires that your top level field be named `query`,
 just like when making raw GraphQL requests.  It also requires that you handle unwrapping the outer
@@ -170,7 +174,7 @@ level `data` object returned by the GraphQL server (which is done in the example
 The lowest level interface offered by Garphunql is the `RawRequest` method, which takes a query as a
 string and returns the exact bytes returned by the server:
 
-    ```go
+  ```go
     package main
 
     import (
@@ -197,7 +201,7 @@ string and returns the exact bytes returned by the server:
       resp, err := client.RawRequest(q)
       fmt.Println(string(resp), err)
     }
-    ```
+```
 
 ## TODO
 - request variables
