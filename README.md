@@ -11,12 +11,14 @@ All of Garphunql's functionality is provided as methods on a `garphunql.Client` 
 instantiate a client with the `garphunql.NewClient` function, providing the server URL and a map of
 headers:
 
+```go
 	client := garphunql.NewClient(
 		"https://api.github.com/graphql",
 		map[string]string{
 			"Authorization": "bearer aidee6gahPe1baeth8tikeijeeth0aedaehe",
 		},
 	)
+```
 
 ### client.QueryFields
 
