@@ -39,6 +39,8 @@ import (
 
 func main() {
 
+  // First define a few fields that we want to query for.  This first one just tells about the
+  // currently logged in user.
   meField := garphunql.Field{
     Name: "viewer",
     Fields: []garphunql.Field{
@@ -47,6 +49,8 @@ func main() {
     },
   }
 
+  // This field is a query for another user.  Github requires that we pass a 'login' argument to
+  // identify the user.
   zachField := garphunql.Field{
     Name: "user",
     Arguments: map[string]interface{}{
@@ -58,6 +62,9 @@ func main() {
     },
   }
 
+  // Also, let's get the names and permissions of all the open source licenses that Github knows
+  // about.  This demonstrates querying more deeply nested fields, and getting a list of results
+  // back instead of a single object.
   licensesField := garphunql.Field{
     Name: "licenses",
     Fields: []garphunql.Field{
@@ -81,6 +88,10 @@ func main() {
   var me User
   var zach User
   var licenses []License
+
+  // This right here is the cool bit.  The client.QueryFields call will combine all the fields you
+  // provide into one query, send it to the server, and then split up the results into the pointers
+  // that you provided with each field.
   err := client.QueryFields(
     garphunql.Q{Field: meField, Dest: &me},
     garphunql.Q{Field: zachField, Dest: &zach},
@@ -91,6 +102,7 @@ func main() {
     panic(err.Error())
   }
 
+  // our structs and slice are now populated!
   fmt.Println("me", me)
   fmt.Println("zach", zach)
   fmt.Println("licenses", licenses)
