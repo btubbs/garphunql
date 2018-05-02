@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"sort"
-	"strings"
 )
 
 // Client is the object used for making all requests.
@@ -63,9 +61,14 @@ func (c *Client) RawRequest(query string) ([]byte, error) {
 	return body, err
 }
 
-// Request takes one Field object and the object or pointer that you want to have the results
+type Fielder interface {
+	Render(...bool) (string, error)
+	GetKey() string
+}
+
+// Request takes one GraphQLField object and the object or pointer that you want to have the results
 // unmarshaled into.  It then does the request and unmarshals the result for you.
-func (c *Client) Request(f Field, out interface{}) error {
+func (c *Client) Request(f Fielder, out interface{}) error {
 
 	query, err := f.Render()
 	if err != nil {
@@ -81,24 +84,34 @@ func (c *Client) Request(f Field, out interface{}) error {
 	return json.Unmarshal(res, out)
 }
 
-// QueryFields takes one or more Req objects, each containing a field and an object or pointer that
+// Query takes one or more FieldDest objects, each containing a field and an object or pointer that
 // that field's data should be unmarshaled into.  It then joins all the fields into a single query,
 // sends it to the server, and unmarshals the results into the containers you provided.
-func (c *Client) QueryFields(first Q, more ...Q) error {
-	reqs := map[string]Q{first.Field.Name: first}
+func (c *Client) Query(first FieldDest, more ...FieldDest) error {
+	reqs := map[string]FieldDest{first.Field.GetKey(): first}
 	for _, f := range more {
-		reqs[f.Field.Name] = f
+		reqs[f.Field.GetKey()] = f
 	}
 
 	// build an outer "query" with all the requested fields as sub selects
-	fields := []Field{}
+	fields := []GraphQLField{}
 	for _, v := range reqs {
-		fields = append(fields, v.Field)
+		switch f := v.Field.(type) {
+		case GraphQLField:
+			fields = append(fields, f)
+		case FieldFunc:
+			fields = append(fields, f())
+		}
 	}
-	q := Field{
+	q := GraphQLField{
 		Name:   "query",
 		Fields: fields,
 	}
+
+	return c.queryFields(q, reqs)
+}
+
+func (c *Client) queryFields(q GraphQLField, reqs map[string]FieldDest) error {
 
 	res := genericResult{}
 	err := c.Request(q, &res)
@@ -116,75 +129,33 @@ func (c *Client) QueryFields(first Q, more ...Q) error {
 	return nil
 }
 
+func (c *Client) Mutation(f FieldDest) error {
+	var field GraphQLField
+	switch v := f.Field.(type) {
+	case GraphQLField:
+		field = v
+	case FieldFunc:
+		field = v()
+	}
+	q := GraphQLField{
+		Name:   "mutation",
+		Fields: []GraphQLField{field},
+	}
+
+	return c.queryFields(q, map[string]FieldDest{f.Field.GetKey(): f})
+}
+
 type genericResult struct {
-	Data map[string]json.RawMessage `json:"data"`
+	Data   map[string]json.RawMessage `json:"data"`
+	Errors []gqlError                 `json:"errors"`
 }
 
-// Q is a GraphQL Field object and a pointer to the thing you want to unmarshal its result into.
-type Q struct {
-	Field Field
+type gqlError struct {
+	Message string `json:"message"`
+}
+
+// FieldDest is a GraphQLField object and a pointer to the thing you want to unmarshal its result into.
+type FieldDest struct {
+	Field Fielder
 	Dest  interface{}
-}
-
-// Field is a graphQL field.
-type Field struct {
-	Name      string
-	Arguments map[string]interface{}
-	Fields    []Field
-}
-
-// Render turns a Field into bytes that you can send in a network request.
-func (f Field) Render(indents ...bool) (string, error) {
-	out := f.Name
-	// loop over the args in alphabetical order to ensure consistent (easily testable) output order.
-	argNames := []string{}
-	for k, _ := range f.Arguments {
-		argNames = append(argNames, k)
-	}
-	sort.Strings(argNames)
-	args := []string{}
-	for _, k := range argNames {
-		a := k + ": "
-		val, err := json.Marshal(f.Arguments[k])
-		if err != nil {
-			return "", err
-		}
-		a += string(val)
-		args = append(args, a)
-	}
-
-	// only include args part if there's at least one arg
-	if len(args) > 0 {
-		out += wrapArgs("(", args, ", ", ")")
-	}
-
-	// ok now render sub selects.
-	subfields := []string{}
-	for _, s := range f.Fields {
-		val, err := s.Render(append(indents, true)...)
-		if err != nil {
-			return "", err
-		}
-		subfields = append(subfields, val)
-	}
-	if len(subfields) > 0 {
-		indent := "  "
-		// curly brace
-		out += " {"
-		// first indent
-		// now render each field
-		for _, f := range subfields {
-			out += "\n"
-			out += strings.Repeat(indent, len(indents)+1)
-			out += f
-		}
-		out += "\n"
-		out += strings.Repeat(indent, len(indents))
-		out += "}"
-	}
-	return out, nil
-}
-
-func wrapArgs(start string, things []string, sep string, end string) string {
-	return start + strings.Join(things, sep) + end
 }

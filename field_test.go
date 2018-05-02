@@ -9,35 +9,26 @@ import (
 )
 
 func TestFieldRender(t *testing.T) {
-	f := Field{
-		Name: "query",
-		Arguments: map[string]interface{}{
-			"bar":  "baz",
-			"quux": 1234,
-		},
-		Fields: []Field{
-			{Name: "first"},
-			{Name: "second"},
-			{
-				Name: "third",
-				Arguments: map[string]interface{}{
-					"arg1": "one",
-					"arg2": 2,
-				},
-				Fields: []Field{
-					{Name: "one"},
-					{Name: "two"},
-				},
-			},
-		},
-	}
+	f := Field("query",
+		Arg("bar", "baz"),
+		Arg("quux", 1234),
+		GraphQLField{Name: "first", Alias: "foo"},
+		"second",
+		Field("third",
+			Alias("somealias"),
+			Arg("arg1", "one"),
+			Arg("arg2", 2),
+			"one",
+			"two",
+		),
+	)
 
 	rendered, err := f.Render()
 	assert.Nil(t, err)
 	expected := `query(bar: "baz", quux: 1234) {
-  first
+  foo: first
   second
-  third(arg1: "one", arg2: 2) {
+  somealias: third(arg1: "one", arg2: 2) {
     one
     two
   }
@@ -72,13 +63,13 @@ func TestClientRequest(t *testing.T) {
 	server := httptest.NewServer(&handler)
 	defer server.Close()
 
-	f := Field{
+	f := GraphQLField{
 		Name: "query",
 		Arguments: map[string]interface{}{
 			"bar":  "baz",
 			"quux": 1234,
 		},
-		Fields: []Field{
+		Fields: []GraphQLField{
 			{Name: "first"},
 			{Name: "second"},
 			{
@@ -87,7 +78,7 @@ func TestClientRequest(t *testing.T) {
 					"arg1": "one",
 					"arg2": 2,
 				},
-				Fields: []Field{
+				Fields: []GraphQLField{
 					{Name: "one"},
 					{Name: "two"},
 				},
@@ -114,21 +105,21 @@ func TestClientRequest(t *testing.T) {
 	assert.Equal(t, expected, out)
 }
 
-// test QueryFields
-func TestClientQueryFields(t *testing.T) {
+// test Query
+func TestClientQuery(t *testing.T) {
 	handler := http.HandlerFunc(fakeSuccessHandler)
 	server := httptest.NewServer(&handler)
 	defer server.Close()
 
-	firstField := Field{Name: "first"}
-	secondField := Field{Name: "second"}
-	thirdField := Field{
+	firstField := GraphQLField{Name: "first"}
+	secondField := GraphQLField{Name: "second"}
+	thirdField := GraphQLField{
 		Name: "third",
 		Arguments: map[string]interface{}{
 			"arg1": "one",
 			"arg2": 2,
 		},
-		Fields: []Field{
+		Fields: []GraphQLField{
 			{Name: "one"},
 			{Name: "two"},
 		},
@@ -139,15 +130,29 @@ func TestClientQueryFields(t *testing.T) {
 	var thirdVal third
 
 	client := NewClient(server.URL, map[string]string{})
-	err := client.QueryFields(
-		Q{Field: firstField, Dest: &first},
-		Q{Field: secondField, Dest: &second},
-		Q{Field: thirdField, Dest: &thirdVal},
+	err := client.Query(
+		Dest(firstField, &first),
+		Dest(secondField, &second),
+		Dest(thirdField, &thirdVal),
 	)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, first)
 	assert.Equal(t, "two", second)
 	assert.Equal(t, third{One: 1, Two: 2}, thirdVal)
+}
+
+func TestClientMutation(t *testing.T) {
+	handler := http.HandlerFunc(fakeSuccessHandler)
+	server := httptest.NewServer(&handler)
+	defer server.Close()
+	client := NewClient(server.URL, map[string]string{})
+	firstField := GraphQLField{Name: "blah", Alias: "first"}
+	var first int
+	err := client.Mutation(
+		Dest(firstField, &first),
+	)
+	assert.Equal(t, 1, first)
+	assert.Nil(t, err)
 }
 
 // a handler that always returns a hardcoded payload.
