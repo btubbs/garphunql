@@ -129,18 +129,19 @@ You might want to query the same field multiple times with different arguments. 
 partially define a field with the options shared between your calls, then call it later with more
 arguments to customize it:
 ```go
+
 func lateBoundFields(client *gql.Client) {
+	var pedro User
+	var sean User
 	unboundUserField := gql.Field("user",
 		gql.Field("name"),
 		gql.Field("location"),
 	)
-	var dave User
-	var kelsey User
 	err := client.Query(
-		unboundUserField(gql.Arg("login", "davecheney"), gql.Dest(&dave)),
-		unboundUserField(gql.Arg("login", "kelseyhightower"), gql.Dest(&kelsey)),
+		unboundUserField(gql.Arg("login", "steenzout"), gql.Dest(&pedro)),
+		unboundUserField(gql.Arg("login", "sophisticasean"), gql.Dest(&sean)),
 	)
-	fmt.Println(err, dave, kelsey)
+	fmt.Println(err, pedro, sean)
 }
 
 ```
