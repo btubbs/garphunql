@@ -14,6 +14,7 @@ type GraphQLField struct {
 	Arguments map[string]interface{}
 	Fields    []GraphQLField
 	Alias     Alias
+	Dest      interface{}
 }
 
 // Render turns a Field into bytes that you can send in a network request.
@@ -73,6 +74,7 @@ func (f GraphQLField) Render(indents ...bool) (string, error) {
 	return out, nil
 }
 
+// GetKey returns the field's alias, if it has one, or otherwise its name.
 func (f GraphQLField) GetKey() string {
 	if len(f.Alias) > 0 {
 		return string(f.Alias)
@@ -80,6 +82,39 @@ func (f GraphQLField) GetKey() string {
 	return f.Name
 }
 
+// Field returns the field's field.
+func (f GraphQLField) Field() GraphQLField {
+	return f
+}
+
+// UpdateField makes GraphQLField satisfy the FieldOption interface, which lets it plug itself into
+// a parent field as a sub selection.
+func (f GraphQLField) UpdateField(parent GraphQLField) GraphQLField {
+	parent.Fields = append(parent.Fields, f)
+	return parent
+}
+
 func wrapArgs(start string, things []string, sep string, end string) string {
 	return start + strings.Join(things, sep) + end
+}
+
+// wrapFields takes a field name and one or more FieldDest pairs, and wraps them into a single
+// GraphQLField and a map of the destinations for unmarshaling the results.
+func wrapFields(name string, first Fielder, more ...Fielder) (GraphQLField, map[string]interface{}) {
+	fields := []GraphQLField{first.Field()}
+	dests := map[string]interface{}{first.GetKey(): first.Field().Dest}
+	for _, f := range more {
+		field := f.Field()
+		key := f.GetKey()
+		// if this field is already present in the dest map, automatically use an alias to
+		// disambiguate this one.
+		if _, ok := dests[key]; ok {
+			key = randomKey()
+			field.Alias = Alias(key)
+		}
+		dests[key] = field.Dest
+		fields = append(fields, field)
+	}
+
+	return GraphQLField{Name: name, Fields: fields}, dests
 }

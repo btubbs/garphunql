@@ -5,8 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"time"
+
+	multierror "github.com/hashicorp/go-multierror"
 )
+
+var seededRand *rand.Rand
+
+const keyChars = "abcdefghijklmnopqrstuvwxyz"
 
 // Client is the object used for making all requests.
 type Client struct {
@@ -14,11 +22,24 @@ type Client struct {
 	headers map[string]string
 }
 
+// A ClientOption is a function that modifies a *Client.
+type ClientOption func(*Client)
+
 // NewClient returns a new client object.
-func NewClient(url string, headers map[string]string) *Client {
-	return &Client{
+func NewClient(url string, options ...ClientOption) *Client {
+	c := &Client{
 		url:     url,
-		headers: headers,
+		headers: map[string]string{},
+	}
+	for _, o := range options {
+		o(c)
+	}
+	return c
+}
+
+func Header(key, val string) ClientOption {
+	return func(c *Client) {
+		c.headers[key] = val
 	}
 }
 
@@ -61,9 +82,12 @@ func (c *Client) RawRequest(query string) ([]byte, error) {
 	return body, err
 }
 
+// Fielder defines the functions that a thing must implement in order to be passed to our Query and
+// Mutation functions.
 type Fielder interface {
 	Render(...bool) (string, error)
 	GetKey() string
+	Field() GraphQLField
 }
 
 // Request takes one GraphQLField object and the object or pointer that you want to have the results
@@ -84,35 +108,21 @@ func (c *Client) Request(f Fielder, out interface{}) error {
 	return json.Unmarshal(res, out)
 }
 
-// Query takes one or more FieldDest objects, each containing a field and an object or pointer that
-// that field's data should be unmarshaled into.  It then joins all the fields into a single query,
-// sends it to the server, and unmarshals the results into the containers you provided.
-func (c *Client) Query(first FieldDest, more ...FieldDest) error {
-	reqs := map[string]FieldDest{first.Field.GetKey(): first}
-	for _, f := range more {
-		reqs[f.Field.GetKey()] = f
-	}
-
-	// build an outer "query" with all the requested fields as sub selects
-	fields := []GraphQLField{}
-	for _, v := range reqs {
-		switch f := v.Field.(type) {
-		case GraphQLField:
-			fields = append(fields, f)
-		case FieldFunc:
-			fields = append(fields, f())
-		}
-	}
-	q := GraphQLField{
-		Name:   "query",
-		Fields: fields,
-	}
-
-	return c.queryFields(q, reqs)
+// Query takes one or more GraphQLField objects.  It joins all the fields into a single query,
+// sends it to the server, and unmarshals the results into Dest fields of the GraphQLField objects.
+func (c *Client) Query(first Fielder, more ...Fielder) error {
+	q, destMap := wrapFields("query", first, more...)
+	return c.queryFields(q, destMap)
 }
 
-func (c *Client) queryFields(q GraphQLField, reqs map[string]FieldDest) error {
+// Mutation accepts a GraphQLField, wraps it in a "mutation" field, performs the query, then scans
+// the result into the field's dest.
+func (c *Client) Mutation(f GraphQLField) error {
+	q, destMap := wrapFields("mutation", f)
+	return c.queryFields(q, destMap)
+}
 
+func (c *Client) queryFields(q GraphQLField, destMap map[string]interface{}) error {
 	res := genericResult{}
 	err := c.Request(q, &res)
 	if err != nil {
@@ -120,42 +130,38 @@ func (c *Client) queryFields(q GraphQLField, reqs map[string]FieldDest) error {
 	}
 
 	// now loop over given requests and pluck/unmarshall the payloads for each one
-	for k, v := range reqs {
-		err := json.Unmarshal(res.Data[k], v.Dest)
+	for k, v := range destMap {
+		err := json.Unmarshal(res.Data[k], v)
 		if err != nil {
 			return err
 		}
 	}
-	return nil
-}
 
-func (c *Client) Mutation(f FieldDest) error {
-	var field GraphQLField
-	switch v := f.Field.(type) {
-	case GraphQLField:
-		field = v
-	case FieldFunc:
-		field = v()
+	// If there were any errors server side, then those fields will have come back as null, and they
+	// should have entries in the response's "errors" list.  Combine and report any such server
+	// errors.
+	var errs *multierror.Error
+	for _, e := range res.Errors {
+		errs = multierror.Append(errs, e)
 	}
-	q := GraphQLField{
-		Name:   "mutation",
-		Fields: []GraphQLField{field},
-	}
-
-	return c.queryFields(q, map[string]FieldDest{f.Field.GetKey(): f})
+	return errs.ErrorOrNil()
 }
 
 type genericResult struct {
 	Data   map[string]json.RawMessage `json:"data"`
-	Errors []gqlError                 `json:"errors"`
+	Errors []GraphQLError             `json:"errors"`
 }
 
-type gqlError struct {
-	Message string `json:"message"`
+// return a random string 8 chars long, for use as an alias in a query with a repeated field.
+func randomKey() string {
+	b := make([]byte, 8)
+	for i := range b {
+		b[i] = keyChars[seededRand.Intn(len(keyChars))]
+	}
+	return string(b)
 }
 
-// FieldDest is a GraphQLField object and a pointer to the thing you want to unmarshal its result into.
-type FieldDest struct {
-	Field Fielder
-	Dest  interface{}
+func init() {
+	// provide a pseudo random seed for generating field aliases, if necessary.
+	seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 }

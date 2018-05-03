@@ -1,8 +1,6 @@
 package garphunql
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,13 +11,13 @@ func TestFieldRender(t *testing.T) {
 		Arg("bar", "baz"),
 		Arg("quux", 1234),
 		GraphQLField{Name: "first", Alias: "foo"},
-		"second",
+		Field("second"),
 		Field("third",
 			Alias("somealias"),
 			Arg("arg1", "one"),
 			Arg("arg2", 2),
-			"one",
-			"two",
+			Field("one"),
+			Field("two"),
 		),
 	)
 
@@ -36,155 +34,23 @@ func TestFieldRender(t *testing.T) {
 	assert.Equal(t, expected, string(rendered))
 }
 
-// test RawRequest
-func TestClientRawRequest(t *testing.T) {
-	handler := http.HandlerFunc(fakeSuccessHandler)
-	server := httptest.NewServer(&handler)
-	defer server.Close()
+func TestWrapFields(t *testing.T) {
 
-	rawReq := `query(bar: "baz", quux: 1234) {
-  first
-  second
-  third(arg1: "one", arg2: 2) {
-    one
-    two
-  }
-}`
+	var d1 string
+	var d2 string
 
-	client := NewClient(server.URL, map[string]string{})
-	resp, err := client.RawRequest(rawReq)
+	f1 := Field("user", Dest(&d1))
+	f2 := Field("user", Dest(&d2))
+
+	f, destMap := wrapFields("query", f1, f2)
+	rendered, err := f.Render()
 	assert.Nil(t, err)
-	assert.Equal(t, fakeSuccessPayload, string(resp))
-}
+	// assuming an 8 char random alias, the rendered result should look something like this.  But we
+	// don't know what the random alias will be, and we don't know whether the aliased field will come
+	// first or second.  A better test would parse the query and make assertions against the structure.
+	assert.Equal(t, len("query {\n  nusghjbt: user\n  user\n}"), len(rendered))
 
-// test Request
-func TestClientRequest(t *testing.T) {
-	handler := http.HandlerFunc(fakeSuccessHandler)
-	server := httptest.NewServer(&handler)
-	defer server.Close()
-
-	f := GraphQLField{
-		Name: "query",
-		Arguments: map[string]interface{}{
-			"bar":  "baz",
-			"quux": 1234,
-		},
-		Fields: []GraphQLField{
-			{Name: "first"},
-			{Name: "second"},
-			{
-				Name: "third",
-				Arguments: map[string]interface{}{
-					"arg1": "one",
-					"arg2": 2,
-				},
-				Fields: []GraphQLField{
-					{Name: "one"},
-					{Name: "two"},
-				},
-			},
-		},
+	for k, _ := range destMap {
+		assert.Contains(t, rendered, k)
 	}
-
-	var out fakeSuccessObject
-
-	client := NewClient(server.URL, map[string]string{})
-	err := client.Request(f, &out)
-	assert.Nil(t, err)
-
-	expected := fakeSuccessObject{
-		Data: data{
-			First:  1,
-			Second: "two",
-			Third: third{
-				One: 1,
-				Two: 2,
-			},
-		},
-	}
-	assert.Equal(t, expected, out)
-}
-
-// test Query
-func TestClientQuery(t *testing.T) {
-	handler := http.HandlerFunc(fakeSuccessHandler)
-	server := httptest.NewServer(&handler)
-	defer server.Close()
-
-	firstField := GraphQLField{Name: "first"}
-	secondField := GraphQLField{Name: "second"}
-	thirdField := GraphQLField{
-		Name: "third",
-		Arguments: map[string]interface{}{
-			"arg1": "one",
-			"arg2": 2,
-		},
-		Fields: []GraphQLField{
-			{Name: "one"},
-			{Name: "two"},
-		},
-	}
-
-	var first int
-	var second string
-	var thirdVal third
-
-	client := NewClient(server.URL, map[string]string{})
-	err := client.Query(
-		Dest(firstField, &first),
-		Dest(secondField, &second),
-		Dest(thirdField, &thirdVal),
-	)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, first)
-	assert.Equal(t, "two", second)
-	assert.Equal(t, third{One: 1, Two: 2}, thirdVal)
-}
-
-func TestClientMutation(t *testing.T) {
-	handler := http.HandlerFunc(fakeSuccessHandler)
-	server := httptest.NewServer(&handler)
-	defer server.Close()
-	client := NewClient(server.URL, map[string]string{})
-	firstField := GraphQLField{Name: "blah", Alias: "first"}
-	var first int
-	err := client.Mutation(
-		Dest(firstField, &first),
-	)
-	assert.Equal(t, 1, first)
-	assert.Nil(t, err)
-}
-
-// a handler that always returns a hardcoded payload.
-const fakeSuccessPayload = `
-			{
-				"data": {
-					"first": 1,
-					"second": "two",
-					"third": {
-						"one": 1,
-						"two": 2
-					}
-				}
-			}
-`
-
-func fakeSuccessHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/graphql")
-	w.Write([]byte(fakeSuccessPayload))
-}
-
-type third struct {
-	One int `json:"one"`
-	Two int `json:"two"`
-}
-
-type data struct {
-	First  int    `json:"first"`
-	Second string `json:"second"`
-	Third  third  `json:"third"`
-}
-
-type fakeSuccessObject struct {
-	Data data `json:"data"`
 }
