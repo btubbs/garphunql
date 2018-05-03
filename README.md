@@ -82,7 +82,6 @@ inside a `query` field before Garphunql sends it over the wire):
 
 ```go
 func deeplyNestedFields(client *gql.Client) {
-	// a request to the "licenses" field.  The notable thing here is how we have subfields a couple levels deep.
 	var licenses []License
 	licensesField := gql.Field("licenses",
 		gql.Field("name"),
