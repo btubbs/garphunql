@@ -99,8 +99,9 @@ func deeplyNestedFields(client *gql.Client) {
 ### Querying multiple fields at once
 
 GraphQL lets you query any number of fields at the same time.  Similarly, Garphunql lets you pass in
-any number of `Field` calls to `Query`.  Only one request to the server will be made, and the
-results will each be unmarshaled into the appropriate destinations:
+any number of `Field` calls to `Query`.  The fields will all be bundled together and sent to the
+server as sub-fields of the top-level "query" field.  When the server's response is received, each
+piece of the payload will be unmarshaled into the appropriate destination:
 
 ```go
 func multipleQueries(client *gql.Client) {
