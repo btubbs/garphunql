@@ -123,7 +123,7 @@ func (c *Client) Mutation(f GraphQLField) error {
 }
 
 func (c *Client) queryFields(q GraphQLField, destMap map[string]interface{}) error {
-	res := genericResult{}
+	res := GenericResult{}
 	err := c.Request(q, &res)
 	if err != nil {
 		return err
@@ -147,7 +147,8 @@ func (c *Client) queryFields(q GraphQLField, destMap map[string]interface{}) err
 	return errs.ErrorOrNil()
 }
 
-type genericResult struct {
+// GenericResult matches the outermost structure of a GraphQL response payload.
+type GenericResult struct {
 	Data   map[string]json.RawMessage `json:"data"`
 	Errors []GraphQLError             `json:"errors"`
 }
