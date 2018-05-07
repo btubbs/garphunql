@@ -117,7 +117,7 @@ func (c *Client) Query(first Fielder, more ...Fielder) error {
 
 // Mutation accepts a GraphQLField, wraps it in a "mutation" field, performs the query, then scans
 // the result into the field's dest.
-func (c *Client) Mutation(f GraphQLField) error {
+func (c *Client) Mutation(f Fielder) error {
 	q, destMap := wrapFields("mutation", f)
 	return c.queryFields(q, destMap)
 }
