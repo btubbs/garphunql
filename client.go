@@ -78,8 +78,7 @@ func (c *Client) RawRequest(query string) ([]byte, error) {
 		return nil, fmt.Errorf("non-200 response status: %v.  body: %v", resp.Status, string(body))
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	return body, err
+	return ioutil.ReadAll(resp.Body)
 }
 
 // Fielder defines the functions that a thing must implement in order to be passed to our Query and
@@ -129,20 +128,22 @@ func (c *Client) queryFields(q GraphQLField, destMap map[string]interface{}) err
 		return err
 	}
 
-	// now loop over given requests and pluck/unmarshall the payloads for each one
-	for k, v := range destMap {
-		err := json.Unmarshal(res.Data[k], v)
-		if err != nil {
-			return err
-		}
-	}
-
 	// If there were any errors server side, then those fields will have come back as null, and they
 	// should have entries in the response's "errors" list.  Combine and report any such server
 	// errors.
 	var errs *multierror.Error
 	for _, e := range res.Errors {
 		errs = multierror.Append(errs, e)
+	}
+
+	// now loop over given requests and pluck/unmarshall the payloads for each one
+	for k, v := range destMap {
+		if data, ok := res.Data[k]; ok {
+			err := json.Unmarshal(data, v)
+			if err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("could not unmarshal %v (%s) into %v: %v", res.Data[k], k, v, err))
+			}
+		}
 	}
 	return errs.ErrorOrNil()
 }

@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	multierror "github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -82,39 +83,69 @@ func TestClientRequest(t *testing.T) {
 }
 
 func TestClientQuery(t *testing.T) {
-	handler := http.HandlerFunc(fakeSuccessHandler)
-	server := httptest.NewServer(&handler)
-	defer server.Close()
 
-	var first int
-	var second string
-	var thirdVal third
-
-	firstField := GraphQLField{Name: "first", Dest: &first}
-	secondField := GraphQLField{Name: "second", Dest: &second}
-	thirdField := GraphQLField{
-		Name: "third",
-		Arguments: map[string]interface{}{
-			"arg1": "one",
-			"arg2": 2,
+	tt := []struct {
+		desc        string
+		handler     http.HandlerFunc
+		expectedErr error
+	}{
+		{
+			desc:        "success",
+			handler:     fakeSuccessHandler,
+			expectedErr: nil,
 		},
-		Fields: []GraphQLField{
-			{Name: "one"},
-			{Name: "two"},
+		{
+			desc: "arg error",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"data": null,"errors": [{
+					"message": "Unknown argument \"Foo\" on field \"bar\" of type \"RootQuery\". Did you mean \"foo\"?",
+					"locations": [{"line": 2,"column": 63}]}]}`))
+			},
+			expectedErr: multierror.Append(
+				GraphQLError{
+					Message:   "Unknown argument \"Foo\" on field \"bar\" of type \"RootQuery\". Did you mean \"foo\"?",
+					Locations: []GraphQLErrorLocation{{Line: 2, Column: 63}},
+				},
+			),
 		},
-		Dest: &thirdVal,
 	}
+	for _, tc := range tt {
+		server := httptest.NewServer(&tc.handler)
+		defer server.Close()
 
-	client := NewClient(server.URL)
-	err := client.Query(
-		firstField,
-		secondField,
-		thirdField,
-	)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, first)
-	assert.Equal(t, "two", second)
-	assert.Equal(t, third{One: 1, Two: 2}, thirdVal)
+		var first int
+		var second string
+		var thirdVal third
+
+		firstField := GraphQLField{Name: "first", Dest: &first}
+		secondField := GraphQLField{Name: "second", Dest: &second}
+		thirdField := GraphQLField{
+			Name: "third",
+			Arguments: map[string]interface{}{
+				"arg1": "one",
+				"arg2": 2,
+			},
+			Fields: []GraphQLField{
+				{Name: "one"},
+				{Name: "two"},
+			},
+			Dest: &thirdVal,
+		}
+
+		client := NewClient(server.URL)
+		err := client.Query(
+			firstField,
+			secondField,
+			thirdField,
+		)
+		assert.Equal(t, tc.expectedErr, err, tc.desc)
+		if err == nil {
+			assert.Equal(t, 1, first, tc.desc)
+			assert.Equal(t, "two", second, tc.desc)
+			assert.Equal(t, third{One: 1, Two: 2}, thirdVal, tc.desc)
+		}
+	}
 }
 
 const fakeSuccessPayload = `
