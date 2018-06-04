@@ -17,6 +17,9 @@ type GraphQLField struct {
 	Dest      interface{}
 }
 
+// Enum is a string type alias for argument values that shouldn't have quotes put around them.
+type Enum string
+
 // Render turns a Field into bytes that you can send in a network request.
 func (f GraphQLField) Render(indents ...bool) (string, error) {
 	out := ""
@@ -34,11 +37,16 @@ func (f GraphQLField) Render(indents ...bool) (string, error) {
 	args := []string{}
 	for _, k := range argNames {
 		a := k + ": "
-		val, err := json.Marshal(f.Arguments[k])
-		if err != nil {
-			return "", err
+		switch argVal := f.Arguments[k].(type) {
+		case Enum:
+			a += string(argVal)
+		default:
+			val, err := json.Marshal(argVal)
+			if err != nil {
+				return "", err
+			}
+			a += string(val)
 		}
-		a += string(val)
 		args = append(args, a)
 	}
 

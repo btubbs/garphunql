@@ -16,6 +16,7 @@ func TestFieldRender(t *testing.T) {
 			Alias("somealias"),
 			Arg("arg1", "one"),
 			Arg("arg2", 2),
+			Arg("arg3", Enum("three")),
 			Field("one"),
 			Field("two"),
 		),
@@ -26,7 +27,7 @@ func TestFieldRender(t *testing.T) {
 	expected := `query(bar: "baz", quux: 1234) {
   foo: first
   second
-  somealias: third(arg1: "one", arg2: 2) {
+  somealias: third(arg1: "one", arg2: 2, arg3: three) {
     one
     two
   }
