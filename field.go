@@ -7,14 +7,17 @@ import (
 	"strings"
 )
 
-ype ArgumentFormatter interface {
+//ArgumentFormatter - interface for a format method
+type ArgumentFormatter interface {
 	Format() (string, error)
 }
 
+//Format - type for Enum
 func (e Enum) Format() (string, error) {
 	return string(e), nil
 }
 
+//Format - type for JSONMap
 func (e JSONMap) Format() (string, error) {
 	output := "{"
 	items := []string{}
@@ -54,6 +57,7 @@ type GraphQLField struct {
 
 // Enum is a string type alias for argument values that shouldn't have quotes put around them.
 type Enum string
+
 // JSONMap correctly formats objects that are json types
 type JSONMap map[string]interface{}
 
