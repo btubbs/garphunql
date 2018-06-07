@@ -7,6 +7,41 @@ import (
 	"strings"
 )
 
+ype ArgumentFormatter interface {
+	Format() (string, error)
+}
+
+func (e Enum) Format() (string, error) {
+	return string(e), nil
+}
+
+func (e JSONMap) Format() (string, error) {
+	output := "{"
+	items := []string{}
+	for k, v := range e {
+		i := k + ":"
+		switch val := v.(type) {
+		case ArgumentFormatter:
+			result, err := val.Format()
+			if err != nil {
+				return "", err
+			}
+			i += result
+		default:
+			slice, err := json.Marshal(val)
+			if err != nil {
+				return "", err
+			}
+			i += string(slice)
+		}
+		items = append(items, i)
+	}
+
+	output += strings.Join(items, ",")
+	output += "}"
+	return output, nil
+}
+
 // GraphQLField is a graphQL field.  Normally you will have these built for you by passing arguments
 // to FieldFuncs instead of constructing them directly.
 type GraphQLField struct {
@@ -19,6 +54,8 @@ type GraphQLField struct {
 
 // Enum is a string type alias for argument values that shouldn't have quotes put around them.
 type Enum string
+// JSONMap correctly formats objects that are json types
+type JSONMap map[string]interface{}
 
 // Render turns a Field into bytes that you can send in a network request.
 func (f GraphQLField) Render(indents ...bool) (string, error) {
