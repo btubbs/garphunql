@@ -79,8 +79,12 @@ func (f GraphQLField) Render(indents ...bool) (string, error) {
 	for _, k := range argNames {
 		a := k + ": "
 		switch argVal := f.Arguments[k].(type) {
-		case Enum:
-			a += string(argVal)
+		case ArgumentFormatter:
+			val, err := argVal.Format()
+			if err != nil {
+				return "", err
+			}
+			a += val
 		default:
 			val, err := json.Marshal(argVal)
 			if err != nil {
