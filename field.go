@@ -80,11 +80,11 @@ func (f GraphQLField) Render(indents ...bool) (string, error) {
 		a := k + ": "
 		switch argVal := f.Arguments[k].(type) {
 		case ArgumentFormatter:
-			formatted, err := argVal.Format()
+			val, err := argVal.Format()
 			if err != nil {
 				return "", err
 			}
-			a += formatted
+			a += val
 		default:
 			val, err := json.Marshal(argVal)
 			if err != nil {
