@@ -98,14 +98,34 @@ func TestClientQuery(t *testing.T) {
 			desc: "arg error",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				w.Write([]byte(`{"data": null,"errors": [{
-					"message": "Unknown argument \"Foo\" on field \"bar\" of type \"RootQuery\". Did you mean \"foo\"?",
-					"locations": [{"line": 2,"column": 63}]}]}`))
+				w.Write([]byte(`{
+					"data": null,
+					"errors": [{
+						"message": "Unknown argument \"Foo\" on field \"bar\" of type \"RootQuery\". Did you mean \"foo\"?",
+						"locations": [{
+							"line": 2,
+							"column": 63
+						}],
+						"path": ["testPath"],
+						"extensions": {
+							"errorCode": "invalidArgs",
+							"invalidArgs": {
+								"state": "state is not valid"
+							}
+						}
+					}]
+				}`))
 			},
 			expectedErr: multierror.Append(
 				GraphQLError{
 					Message:   "Unknown argument \"Foo\" on field \"bar\" of type \"RootQuery\". Did you mean \"foo\"?",
 					Locations: []GraphQLErrorLocation{{Line: 2, Column: 63}},
+					Path:      []string{"testPath"},
+					Extensions: JSONMap(map[string]interface{}{
+						"errorCode":   "invalidArgs",
+						"invalidArgs": map[string]interface{}{"state": "state is not valid"},
+					},
+					),
 				},
 			),
 		},
