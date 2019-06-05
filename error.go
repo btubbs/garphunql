@@ -1,6 +1,9 @@
 package garphunql
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // A GraphQLError represents an object returned in the "errors" list in a GraphQL response payload.
 // It also implements the Go error interface.
@@ -13,7 +16,11 @@ type GraphQLError struct {
 
 // Error renders the GraphQLError as a single string.
 func (e GraphQLError) Error() string {
-	return fmt.Sprintf("%s (%v)", e.Message, e.Locations)
+	newErr, err := json.Marshal(e)
+	if err != nil {
+		return fmt.Sprintf("%s", e.Message)
+	}
+	return fmt.Sprintf("%s", newErr)
 }
 
 // GraphQLErrorLocation is a sub-field of GraphQLError.
