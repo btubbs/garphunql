@@ -5,8 +5,10 @@ import "fmt"
 // A GraphQLError represents an object returned in the "errors" list in a GraphQL response payload.
 // It also implements the Go error interface.
 type GraphQLError struct {
-	Message   string                 `json:"message"`
-	Locations []GraphQLErrorLocation `json:"locations"`
+	Message    string                 `json:"message"`
+	Locations  []GraphQLErrorLocation `json:"locations"`
+	Path       []string               `json:"path"`
+	Extensions JSONMap                `json:"extensions"`
 }
 
 // Error renders the GraphQLError as a single string.
