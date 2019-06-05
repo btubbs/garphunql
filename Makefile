@@ -20,11 +20,9 @@ viewcoverage: profile.cov
 vet:
 	go vet $(GOLIST)
 
-check: $(GOBIN)/megacheck
-	$(GOBIN)/megacheck $(GOLIST)
-
-$(GOBIN)/megacheck:
-	go get -v -u honnef.co/go/tools/cmd/megacheck
+check: 
+$(GOBIN)/golangci-lint:
+	go get -v -u github.com/golangci/golangci-lint/cmd/golangci-lint
 
 $(GOBIN)/goveralls:
 	go get -v -u github.com/mattn/goveralls
@@ -32,5 +30,5 @@ $(GOBIN)/goveralls:
 $(GOBIN)/dep:
 	go get -v -u github.com/golang/dep/cmd/dep
 
-ci: dep profile.cov vet check $(GOBIN)/goveralls
+ci: dep profile.cov vet check $(GOBIN)/golangci-lint $(GOBIN)/goveralls
 	$(GOBIN)/goveralls -coverprofile=profile.cov -service=travis-ci
