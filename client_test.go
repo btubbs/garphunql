@@ -1,6 +1,7 @@
 package garphunql
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -30,7 +31,7 @@ func TestClientRawRequest(t *testing.T) {
 }`
 
 	client := NewClient(server.URL)
-	resp, err := client.RawRequest(rawReq)
+	resp, err := client.RawRequest(context.Background(), rawReq)
 	assert.Nil(t, err)
 	assert.Equal(t, fakeSuccessPayload, string(resp))
 }
@@ -66,7 +67,7 @@ func TestClientRequest(t *testing.T) {
 	var out fakeSuccessObject
 
 	client := NewClient(server.URL)
-	err := client.Request(f, &out)
+	err := client.Request(context.Background(), f, &out)
 	assert.Nil(t, err)
 
 	expected := fakeSuccessObject{
